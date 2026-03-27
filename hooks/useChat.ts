@@ -1,80 +1,127 @@
-import { useState } from "react";
-import { sendChatMessage } from "../services/api";
+import { useState, useCallback } from "react";
+import { sendChatMessage }                  from "../services/api";
+import { parseApiResponse }                 from "../services/responseParser";
+import { computeHealthFromKPIs, buildHistoryEntry } from "../utils/healthScore";
+import type { HistoryEntry }  from "../utils/healthScore";
+import type { AIInsights }    from "../components/AIInsightsPanel";
+
+/**
+ * useChat — central state hub for the chat + dashboard.
+ *
+ * BUGS FIXED:
+ *  1. Double-format regression: parsed.answerText is ALREADY HTML from
+ *     responseParser (HTML passthrough or plain-text → <p> wrapped).
+ *     Calling formatAnswerText() on it again produced <p><p>...</p></p>.
+ *     Fix: use parsed.answerText directly as aiMsg.text.
+ *
+ *  2. Chart replace instead of accumulate: setCharts(parsed.charts)
+ *     wiped previous charts on each query.
+ *     Fix: append → setCharts(prev => [...prev, ...parsed.charts])
+ */
+
+interface Message {
+  role:   "user" | "ai";
+  text:   string;
+  kpis?:  any[];
+  charts?: any[];
+}
+
+interface Chat {
+  id:       number;
+  name:     string;
+  messages: Message[];
+}
 
 export default function useChat() {
-
-  const [chats, setChats] = useState<any[]>([
-    {
-      id: 1,
-      name: "Chat 1",
-      messages: []
-    }
+  const [chats, setChats] = useState<Chat[]>([
+    { id: 1, name: "Session 1", messages: [] },
   ]);
+  const [activeChatId, setActiveChatId] = useState<number>(1);
 
-  const [activeChatId, setActiveChatId] = useState(1);
+  // Dashboard state
+  const [kpis,        setKpis]        = useState<any[]>([]);
+  const [charts,      setCharts]      = useState<any[]>([]);
+  const [aiInsights,  setAiInsights]  = useState<AIInsights | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
 
-  // 🔥 STATES
-  const [kpis, setKpis] = useState<any[]>([]);
-  const [charts, setCharts] = useState<any[]>([]);
+  // Per-session score history (resets on page reload)
+  const [history,     setHistory]     = useState<HistoryEntry[]>([]);
+  const [lastScore,   setLastScore]   = useState<number | null>(null);
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = useCallback(
+    async (text: string) => {
+      const userMsg: Message = { role: "user", text };
 
-    const userMessage = { role: "user", text };
-
-    // ✅ Add user message
-    setChats(prev =>
-      prev.map(chat =>
-        chat.id === activeChatId
-          ? { ...chat, messages: [...chat.messages, userMessage] }
-          : chat
-      )
-    );
-
-    try {
-      const data = await sendChatMessage(text);
-
-      console.log("API DATA:", data);
-
-      // ✅ AI message
-      const aiMessage = {
-        role: "ai",
-        text: data.answer || "No response"
-      };
-
-      setChats(prev =>
-        prev.map(chat =>
+      // Optimistically append user message
+      setChats((prev) =>
+        prev.map((chat) =>
           chat.id === activeChatId
-            ? { ...chat, messages: [...chat.messages, aiMessage] }
+            ? { ...chat, messages: [...chat.messages, userMsg] }
             : chat
         )
       );
 
-      // ✅ KPI
-      if (data.kpis) {
-        setKpis(data.kpis);
-      }
+      setIsAnalyzing(true);
 
-      // 🔥 LINE CHART HANDLING (MAIN CHANGE)
-      if (data.charts && Array.isArray(data.charts)) {
+      try {
+        const data   = await sendChatMessage(text);
+        const parsed = parseApiResponse(data);
 
-        const lineCharts = data.charts
-          .filter((chart: any) => chart.type === "line") // only line chart
-          .map((chart: any) => ({
-            id: Date.now(),
-            type: "line",
-            data: chart.data // must come from DB
-          }));
+        // parsed.answerText is already-formatted HTML — do NOT re-format.
+        const aiMsg: Message = {
+          role:   "ai",
+          text:   parsed.answerText,
+          kpis:   parsed.kpis,
+          charts: parsed.charts,
+        };
 
-        if (lineCharts.length > 0) {
-          setCharts(prev => [...prev, ...lineCharts]);
+        setChats((prev) =>
+          prev.map((chat) =>
+            chat.id === activeChatId
+              ? { ...chat, messages: [...chat.messages, aiMsg] }
+              : chat
+          )
+        );
+
+        // Update KPIs (latest replaces; they summarise current state)
+        if (parsed.kpis.length > 0)   setKpis(parsed.kpis);
+
+        // ACCUMULATE charts — new charts append; old ones stay accessible via scroll
+        if (parsed.charts.length > 0) {
+          setCharts((prev) => [...prev, ...parsed.charts]);
         }
+
+        if (parsed.ai_insights)       setAiInsights(parsed.ai_insights);
+
+        // Compute health score and push to history
+        if (parsed.kpis.length > 0) {
+          const result = computeHealthFromKPIs(parsed.kpis);
+          if (result) {
+            const entry = buildHistoryEntry(result, lastScore);
+            setHistory((prev) => [entry, ...prev].slice(0, 30)); // keep last 30
+            setLastScore(result.score);
+          }
+        }
+      } catch (err) {
+        console.error("[useChat] sendMessage error:", err);
+
+        const errMsg: Message = {
+          role: "ai",
+          text: "<p>Analysis failed. Please check your connection and retry.</p>",
+        };
+        setChats((prev) =>
+          prev.map((chat) =>
+            chat.id === activeChatId
+              ? { ...chat, messages: [...chat.messages, errMsg] }
+              : chat
+          )
+        );
+      } finally {
+        setIsAnalyzing(false);
       }
-
-    } catch (error) {
-      console.error("Chat Error:", error);
-    }
-
-  };
+    },
+    [activeChatId, lastScore]
+  );
 
   return {
     chats,
@@ -83,6 +130,9 @@ export default function useChat() {
     setActiveChatId,
     sendMessage,
     kpis,
-    charts
+    charts,
+    aiInsights,
+    isAnalyzing,
+    history,
   };
 }

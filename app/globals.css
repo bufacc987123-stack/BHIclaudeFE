@@ -1,26 +1,144 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/**
+ * Design system tokens v3
+ *
+ * Palette:
+ *   Primary   #89BEF6   periwinkle blue   → interactive accent
+ *   Secondary #546E7A   blue-grey         → muted text
+ *   Tertiary  #00695C   deep teal         → health / success
+ *   Neutral   #BDCCD3   light slate       → body text / borders
+ *
+ * Theme switching: set [data-mode="light"] or [data-mode="dark"] on the
+ * root wrapper div.  Default (no attribute) → light mode.
+ *
+ * Components reference ONLY the semantic variables below (never raw hex)
+ * so that a single attribute change cascades everywhere.
+ */
+
+/* ── LIGHT MODE (default) ─────────────────────────────────────────────────── */
+:root,
+[data-mode="light"] {
+  /* Backgrounds */
+  --bg-0:   #EEF4F8;   /* outermost / page bg          */
+  --bg-1:   #FFFFFF;   /* card / input bg               */
+  --bg-2:   #EAF0F5;   /* sidebar / header surface      */
+  --bg-3:   #F5F9FC;   /* elevated card                 */
+  --bg-4:   #F0F5F9;   /* chat column                   */
+
+  /* Borders */
+  --bd-1:   #BDCCD3;   /* main border                   */
+  --bd-2:   #D8E5EC;   /* subtle / secondary border     */
+
+  /* Text */
+  --tx-1:   #0D1F2F;   /* high-emphasis                 */
+  --tx-2:   #263238;   /* body                          */
+  --tx-3:   #546E7A;   /* muted / label                 */
+  --tx-4:   #7A9BB5;   /* faint                         */
+  --tx-5:   #BDCCD3;   /* placeholder / very faint      */
+
+  /* Interactive accent — darker blue for contrast on white */
+  --ac-1:        #1565C0;
+  --ac-hover:    #0D47A1;
+  --ac-bg:       rgba(21,101,192, 0.08);
+  --ac-bd:       rgba(21,101,192, 0.25);
+  --ac-text-btn: #FFFFFF;   /* text on filled accent button   */
+
+  /* Charts */
+  --ch-grid:    #E0E8EE;
+  --ch-axis:    #7A9BB5;
+  --ch-tt-bg:   #FFFFFF;
+  --ch-tt-bd:   #BDCCD3;
+  --ch-tt-tx:   #263238;
+
+  /* Status (same in both modes) */
+  --st-green:  #00897B;
+  --st-amber:  #F57C00;
+  --st-red:    #C62828;
+
+  --background: var(--bg-0);
+  --foreground: var(--tx-1);
 }
 
+/* ── DARK MODE ────────────────────────────────────────────────────────────── */
+[data-mode="dark"] {
+  --bg-0:   #07111C;
+  --bg-1:   #081421;
+  --bg-2:   #0D1F2F;
+  --bg-3:   #0A1628;
+  --bg-4:   #0A1A2E;
+
+  --bd-1:   #1E3A56;
+  --bd-2:   #0F2240;
+
+  --tx-1:   #E8F4FF;
+  --tx-2:   #BDCCD3;
+  --tx-3:   #546E7A;
+  --tx-4:   #2D4558;
+  --tx-5:   #1A3050;
+
+  --ac-1:        #89BEF6;
+  --ac-hover:    #A8D4F8;
+  --ac-bg:       rgba(137,190,246, 0.08);
+  --ac-bd:       rgba(137,190,246, 0.22);
+  --ac-text-btn: #07111C;
+
+  --ch-grid:    #1E3A56;
+  --ch-axis:    #546E7A;
+  --ch-tt-bg:   #0D1F2F;
+  --ch-tt-bd:   #1E3A56;
+  --ch-tt-tx:   #BDCCD3;
+
+  --st-green:  #00897B;
+  --st-amber:  #FFA726;
+  --st-red:    #EF5350;
+
+  --background: var(--bg-0);
+  --foreground: var(--tx-1);
+}
+
+/* ── Tailwind v4 theme registration ─────────────────────────────────────────── */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-geist-sans, "Inter", "Arial", sans-serif);
+  --font-mono: var(--font-geist-mono, "JetBrains Mono", monospace);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* ── Base reset ───────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background:  var(--background);
+  color:       var(--foreground);
+  font-family: var(--font-sans);
+  font-size:   14px;
+  line-height: 1.6;
+  -webkit-font-smoothing:  antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar           { width: 4px; height: 4px; }
+::-webkit-scrollbar-track     { background: var(--bg-0); }
+::-webkit-scrollbar-thumb     { background: var(--bd-1); border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: var(--tx-3); }
+
+/* ── Selection ────────────────────────────────────────────────────────────── */
+::selection { background: var(--ac-bg); color: var(--tx-1); }
+
+/* ── Analyzing dot animation ─────────────────────────────────────────────── */
+@keyframes pulse {
+  0%, 100% { opacity: 0.2; transform: scale(0.8); }
+  50%       { opacity: 1;   transform: scale(1);   }
+}
+
+/* ── Prose styles (answer HTML rendered by dangerouslySetInnerHTML) ──────── */
+.answer-prose p     { margin-bottom: 0.6rem; }
+.answer-prose p:last-child { margin-bottom: 0; }
+.answer-prose ul,
+.answer-prose ol    { margin: 0.4rem 0 0.6rem 1.2rem; }
+.answer-prose li    { margin-bottom: 0.25rem; }
+.answer-prose strong { font-weight: 600; color: var(--tx-1); }
+.answer-prose em     { font-style: italic; }
