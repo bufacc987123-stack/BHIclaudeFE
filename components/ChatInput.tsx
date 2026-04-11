@@ -1,22 +1,13 @@
 "use client";
 
-/**
- * ChatInput — text field + file attach + send.
- *
- * Theme: all structural colours → CSS vars.
- * Send button:   --ac-1 background, --ac-text-btn text (inverts correctly
- *                for light mode, where --ac-1 is dark blue and text is white).
- * Focus ring:    --ac-1 border.
- * Disabled:      --bd-1 background, --tx-5 text.
- */
-
 import { useState, useRef } from "react";
 import { useFileParser }    from "../hooks/useFileParser";
-import { uploadJSON }       from "../services/api";
+import { uploadJSON, resetSession, UploadError } from "../services/api";
 
 interface Props {
-  sendMessage: (text: string) => void;
-  isDisabled?: boolean;
+  sendMessage:   (text: string) => void;
+  injectMessage: (text: string) => void;   // local system message — no API call
+  isDisabled?:   boolean;
 }
 
 function AttachIcon() {
@@ -44,9 +35,9 @@ function Spinner() {
   );
 }
 
-export default function ChatInput({ sendMessage, isDisabled = false }: Props) {
+export default function ChatInput({ sendMessage, injectMessage, isDisabled = false }: Props) {
   const [text,        setText]        = useState("");
-  const [fileName,    setFileName]    = useState("");
+  const [fileNames,   setFileNames]   = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -69,29 +60,60 @@ export default function ChatInput({ sendMessage, isDisabled = false }: Props) {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
 
-    setFileName(file.name);
+    setFileNames(files.map((f) => f.name));
     setIsUploading(true);
 
     try {
-      const jsonData = await parseFile(file);
-      await uploadJSON({ file_name: file.name, data: jsonData });
-      sendMessage(`File uploaded: ${file.name}`);
+      // Parse all selected files in parallel
+      const parsed = await Promise.all(files.map((f) => parseFile(f)));
+
+      const payload = {
+        files: files.map((f, i) => ({ file_name: f.name, data: parsed[i] })),
+      };
+
+      await uploadJSON(payload);
+
+      const names = files.map((f) => f.name).join(", ");
+      // Inject locally — does not hit /api/chat, cannot trigger the fragile
+      // "file uploaded" string check accidentally on user-typed messages.
+      injectMessage(`✅ ${files.length > 1 ? "Datasets" : "Dataset"} uploaded: ${names}`);
+
     } catch (err: any) {
-      console.error("[ChatInput] Upload error:", err);
-      sendMessage(`Upload failed: ${err?.message ?? "unknown error"}`);
+      const is409 = (err as UploadError).status === 409;
+
+      if (is409) {
+        // Show the backend's detail message + reset affordance
+        injectMessage(
+          `⚠️ Session locked: ${err.message} ` +
+          `— click "Reset Session" in the toolbar to upload new data.`
+        );
+      } else {
+        console.error("[ChatInput] Upload error:", err);
+        injectMessage(`❌ Upload failed: ${err?.message ?? "unknown error"}`);
+      }
     } finally {
       setIsUploading(false);
+      setFileNames([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleReset = async () => {
+    try {
+      await resetSession();
+      injectMessage("🔄 Session reset. You can now upload new datasets.");
+    } catch {
+      injectMessage("❌ Reset failed. Please try again.");
     }
   };
 
   return (
     <div className="space-y-2">
       {/* File badge */}
-      {fileName && (
+      {fileNames.length > 0 && (
         <div
           className="flex items-center gap-2 px-3 py-1.5 border"
           style={{ background: "var(--bg-3)", borderColor: "var(--bd-1)" }}
@@ -101,7 +123,7 @@ export default function ChatInput({ sendMessage, isDisabled = false }: Props) {
             className="text-[10px] tracking-[0.12em] truncate"
             style={{ color: "var(--tx-3)" }}
           >
-            {fileName}
+            {fileNames.join(", ")}
           </span>
           {isUploading && (
             <span
@@ -115,11 +137,12 @@ export default function ChatInput({ sendMessage, isDisabled = false }: Props) {
       )}
 
       <div className="flex items-center gap-2">
-        {/* Hidden file input */}
+        {/* Hidden file input — multiple allows up to 4 files */}
         <input
           ref={fileInputRef}
           type="file"
-          accept=".csv,.xlsx,.json"
+          accept=".csv,.xlsx"
+          multiple
           className="hidden"
           onChange={handleFileUpload}
           disabled={isBusy}
@@ -136,10 +159,27 @@ export default function ChatInput({ sendMessage, isDisabled = false }: Props) {
             borderColor: "var(--bd-1)",
             color:       "var(--tx-3)",
           }}
-          title="Attach CSV / XLSX / JSON"
+          title="Attach CSV / XLSX (up to 4 files)"
           aria-label="Attach file"
         >
           <AttachIcon />
+        </button>
+
+        {/* Reset session button */}
+        <button
+          type="button"
+          onClick={handleReset}
+          disabled={isBusy}
+          className="shrink-0 px-3 py-2.5 border text-[10px] tracking-[0.15em] uppercase font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{
+            background:  "var(--bg-1)",
+            borderColor: "var(--bd-1)",
+            color:       "var(--tx-4)",
+          }}
+          title="Reset session to upload new datasets"
+          aria-label="Reset session"
+        >
+          Reset
         </button>
 
         {/* Text field */}
@@ -152,9 +192,9 @@ export default function ChatInput({ sendMessage, isDisabled = false }: Props) {
           disabled={isBusy}
           className="flex-1 px-4 py-2.5 border text-sm font-mono transition-colors focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed"
           style={{
-            background:   "var(--bg-1)",
-            borderColor:  "var(--bd-1)",
-            color:        "var(--tx-2)",
+            background:  "var(--bg-1)",
+            borderColor: "var(--bd-1)",
+            color:       "var(--tx-2)",
           }}
         />
 
@@ -165,8 +205,8 @@ export default function ChatInput({ sendMessage, isDisabled = false }: Props) {
           disabled={isBusy || !text.trim()}
           className="shrink-0 flex items-center gap-2 px-5 py-2.5 text-xs tracking-[0.15em] uppercase font-semibold transition-colors disabled:cursor-not-allowed"
           style={{
-            background:  isBusy || !text.trim() ? "var(--bd-1)"         : "var(--ac-1)",
-            color:       isBusy || !text.trim() ? "var(--tx-4)"         : "var(--ac-text-btn)",
+            background: isBusy || !text.trim() ? "var(--bd-1)"        : "var(--ac-1)",
+            color:      isBusy || !text.trim() ? "var(--tx-4)"        : "var(--ac-text-btn)",
           }}
           aria-label="Send message"
         >

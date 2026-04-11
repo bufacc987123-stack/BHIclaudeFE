@@ -39,11 +39,21 @@ export interface Chart {
   [key: string]: unknown;
 }
 
+export interface ResponseMetadata {
+  source:        "pre_computed" | "calculated" | "rag" | "cache" | "error";
+  formula?:      string;           // e.g. "(Revenue - Cost) / Cost × 100"
+  columns_used?: string[];          // e.g. ["Revenue Generated (₹)", "Campaign Cost (₹)"]
+  warnings?:     string[];          // e.g. ["Data is 2 hours old", "Some values missing"]
+  filter_applied?: string;          // e.g. "Marketing Channel = 'Google Ads'"
+  [key: string]: unknown;           // Allow additional metadata fields
+}
+
 export interface ParsedResponse {
-  answerText:  string;      // HTML-safe string, ready for dangerouslySetInnerHTML
+  answerText:  string;       // HTML-safe string, ready for dangerouslySetInnerHTML
   kpis:        KPI[];
   charts:      Chart[];
   ai_insights: AIInsights | null;
+  metadata?:   ResponseMetadata;  // Data source, formula, filters, warnings
 }
 
 export interface ApiResponse {
@@ -51,6 +61,7 @@ export interface ApiResponse {
   kpis?:        any[];       // may use `name` instead of `title`
   charts?:      Chart[];
   ai_insights?: AIInsights;
+  metadata?:    ResponseMetadata;  // Data provenance and calculation info
 }
 
 // ── HTML detection ────────────────────────────────────────────────────────────
@@ -163,7 +174,7 @@ export function parseApiResponse(data: ApiResponse): ParsedResponse {
     }
   }
 
-  return { answerText, kpis, charts, ai_insights };
+  return { answerText, kpis, charts, ai_insights, metadata: data.metadata };
 }
 
 /**

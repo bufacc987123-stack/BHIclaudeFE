@@ -1,19 +1,8 @@
 "use client";
 
-/**
- * ChatArea — messages + input column.
- *
- * Theme: all structural surfaces, borders, text → CSS vars so light/dark
- * switch propagates automatically from the ChatWidget root.
- *
- * answer-prose class (globals.css) handles p/ul/li/strong/em inside
- * dangerouslySetInnerHTML — no need for Tailwind [&_p]: overrides here.
- */
-
 import { useEffect, useRef } from "react";
 import ChatInput from "./ChatInput";
 
-// ── Analyzing indicator ───────────────────────────────────────────────────────
 function AnalyzingIndicator() {
   return (
     <div className="flex justify-start">
@@ -44,7 +33,6 @@ function AnalyzingIndicator() {
   );
 }
 
-// ── User message ───────────────────────────────────────────────────────────────
 function UserBubble({ text }: { text: string }) {
   return (
     <div className="flex justify-end">
@@ -60,7 +48,6 @@ function UserBubble({ text }: { text: string }) {
   );
 }
 
-// ── AI message ─────────────────────────────────────────────────────────────────
 function AIBubble({ text, kpis }: { text: string; kpis?: any[] }) {
   return (
     <div className="flex justify-start">
@@ -68,12 +55,8 @@ function AIBubble({ text, kpis }: { text: string; kpis?: any[] }) {
         className="max-w-lg w-full border px-5 py-4"
         style={{ background: "var(--bg-1)", borderColor: "var(--bd-1)" }}
       >
-        {/* Analysis label */}
         <div className="flex items-center gap-2 mb-3">
-          <span
-            className="w-1 h-1 rounded-full"
-            style={{ background: "var(--ac-1)" }}
-          />
+          <span className="w-1 h-1 rounded-full" style={{ background: "var(--ac-1)" }} />
           <span
             className="text-[9px] tracking-[0.22em] uppercase font-medium"
             style={{ color: "var(--tx-3)" }}
@@ -82,14 +65,12 @@ function AIBubble({ text, kpis }: { text: string; kpis?: any[] }) {
           </span>
         </div>
 
-        {/* Answer text — answer-prose class applies p/ul/li styling from globals.css */}
         <div
           className="answer-prose text-sm leading-relaxed"
           style={{ color: "var(--tx-2)" }}
           dangerouslySetInnerHTML={{ __html: text }}
         />
 
-        {/* Inline KPI mini-grid (first 4 KPIs for quick reference) */}
         {kpis && kpis.length > 0 && (
           <div
             className="mt-4 pt-4 border-t grid grid-cols-2 gap-2"
@@ -107,13 +88,8 @@ function AIBubble({ text, kpis }: { text: string; kpis?: any[] }) {
                 >
                   {kpi.title}
                 </p>
-                <p
-                  className="text-sm font-bold font-mono"
-                  style={{ color: "var(--ac-1)" }}
-                >
-                  {typeof kpi.value === "number"
-                    ? kpi.value.toLocaleString()
-                    : kpi.value}
+                <p className="text-sm font-bold font-mono" style={{ color: "var(--ac-1)" }}>
+                  {typeof kpi.value === "number" ? kpi.value.toLocaleString() : kpi.value}
                   {kpi.unit ? ` ${kpi.unit}` : ""}
                 </p>
               </div>
@@ -125,16 +101,17 @@ function AIBubble({ text, kpis }: { text: string; kpis?: any[] }) {
   );
 }
 
-// ── System / upload confirmation ───────────────────────────────────────────────
+// System messages (upload confirmations, errors, resets) — never hit the API.
+// Identified by msg.isSystem === true, not by fragile string matching.
 function SystemMessage({ text }: { text: string }) {
   return (
     <div className="flex justify-center">
       <div
-        className="border px-4 py-2"
+        className="border px-4 py-2 max-w-lg"
         style={{ background: "var(--bg-3)", borderColor: "var(--bd-1)" }}
       >
         <p
-          className="text-[10px] tracking-[0.15em] uppercase"
+          className="text-[10px] tracking-[0.15em]"
           style={{ color: "var(--tx-3)" }}
         >
           {text}
@@ -144,7 +121,6 @@ function SystemMessage({ text }: { text: string }) {
   );
 }
 
-// ── Empty state ────────────────────────────────────────────────────────────────
 function EmptyState() {
   const prompts = [
     "What is the total deal value by owner?",
@@ -176,11 +152,8 @@ function EmptyState() {
         {prompts.map((p, i) => (
           <div
             key={i}
-            className="border px-4 py-2.5 text-xs cursor-default transition-colors"
-            style={{
-              borderColor: "var(--bd-1)",
-              color:        "var(--tx-3)",
-            }}
+            className="border px-4 py-2.5 text-xs cursor-default"
+            style={{ borderColor: "var(--bd-1)", color: "var(--tx-3)" }}
           >
             {p}
           </div>
@@ -190,18 +163,19 @@ function EmptyState() {
   );
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
 interface Props {
-  chats:        any[];
-  activeChatId: number;
-  sendMessage:  (text: string) => void;
-  isAnalyzing?: boolean;
+  chats:         any[];
+  activeChatId:  number;
+  sendMessage:   (text: string) => void;
+  injectMessage: (text: string) => void;
+  isAnalyzing?:  boolean;
 }
 
 export default function ChatArea({
   chats,
   activeChatId,
   sendMessage,
+  injectMessage,
   isAnalyzing = false,
 }: Props) {
   const activeChat = chats.find((c: any) => c.id === activeChatId);
@@ -214,23 +188,14 @@ export default function ChatArea({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Message list */}
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {messages.length === 0 && !isAnalyzing ? (
           <EmptyState />
         ) : (
           <>
             {messages.map((m: any, i: number) => {
-              const isSystem =
-                m.role === "ai" &&
-                !m.kpis?.length &&
-                (m.text.includes("uploaded") || m.text.includes("Upload"));
-
-              if (m.role === "user") return <UserBubble key={i} text={m.text} />;
-              if (isSystem) {
-                const raw = m.text.replace(/<[^>]+>/g, "").trim();
-                return <SystemMessage key={i} text={raw} />;
-              }
+              if (m.role === "user")   return <UserBubble   key={i} text={m.text} />;
+              if (m.isSystem)          return <SystemMessage key={i} text={m.text} />;
               return <AIBubble key={i} text={m.text} kpis={m.kpis} />;
             })}
 
@@ -240,12 +205,15 @@ export default function ChatArea({
         )}
       </div>
 
-      {/* Input bar */}
       <div
         className="border-t p-4"
         style={{ borderColor: "var(--bd-1)", background: "var(--bg-1)" }}
       >
-        <ChatInput sendMessage={sendMessage} isDisabled={isAnalyzing} />
+        <ChatInput
+          sendMessage={sendMessage}
+          injectMessage={injectMessage}
+          isDisabled={isAnalyzing}
+        />
       </div>
     </div>
   );

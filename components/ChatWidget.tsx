@@ -152,9 +152,13 @@ export default function ChatWidget() {
     chats, setChats,
     activeChatId, setActiveChatId,
     sendMessage,
+    injectMessage,
     kpis, charts, aiInsights,
-    isAnalyzing, history,
+    analyzingIds, history,
   } = useChat();
+
+  // Scoped to active chat only — prevents other sessions bleeding "analysing" state
+  const isAnalyzing = analyzingIds.has(activeChatId);
 
   const [showPanel, setShowPanel] = useState(true);
 
@@ -219,6 +223,7 @@ export default function ChatWidget() {
             chats={chats}
             activeChatId={activeChatId}
             sendMessage={sendMessage}
+            injectMessage={injectMessage}
             isAnalyzing={isAnalyzing}
           />
         </main>
