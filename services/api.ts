@@ -1,4 +1,4 @@
-const BACKEND_URL = "http://127.0.0.1:8000";
+const NEXT_PUBLIC_BACKEND_URL = "http://127.0.0.1:8000";
 
 // ── Session ID ────────────────────────────────────────────────────────────────
 // Generated once per browser tab, stored in sessionStorage.
@@ -38,7 +38,7 @@ export async function sendChatMessage(
       { role: "human", content: message, type: "text" },
     ];
 
-    const res = await fetch(`${BACKEND_URL}/api/chat`, {
+    const res = await fetch(`${NEXT_PUBLIC_BACKEND_URL}/api/chat`, {
       method:  "POST",
       headers: sessionHeaders(),
       body:    JSON.stringify({ chat_history: chatHistory }),
@@ -58,7 +58,7 @@ export interface UploadError extends Error {
 }
 
 export async function uploadJSON(payload: unknown): Promise<unknown> {
-  const res = await fetch(`${BACKEND_URL}/api/upload-json`, {
+  const res = await fetch(`${NEXT_PUBLIC_BACKEND_URL}/api/upload-json`, {
     method:  "POST",
     headers: sessionHeaders(),
     body:    JSON.stringify(payload),
@@ -82,7 +82,7 @@ export async function uploadJSON(payload: unknown): Promise<unknown> {
 
 // ── Reset session ─────────────────────────────────────────────────────────────
 export async function resetSession(): Promise<void> {
-  await fetch(`${BACKEND_URL}/api/reset-session`, {
+  await fetch(`${NEXT_PUBLIC_BACKEND_URL}/api/reset-session`, {
     method:  "POST",
     headers: sessionHeaders(),
   });
