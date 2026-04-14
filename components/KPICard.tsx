@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * KPICard — metric tile with status tag.
+ * KPICard — metric tile with status tag + optional identifying fields.
  *
  * Theme: structural surfaces, borders, muted text → CSS vars (--bg-*, --bd-*,
  * --tx-*) so light/dark switch propagates automatically.
@@ -13,15 +13,28 @@
  *   primary  → accent blue — "NOMINAL"
  *   warning  → amber — "ATTENTION"
  *   info     → grey  — "TRACKED"
+ *
+ * identifying_fields (optional):
+ *   When a MAX/MIN result returns a specific row (e.g. highest deal), the
+ *   backend attaches the key fields of that row here so we can render them
+ *   as labeled "data pill" tiles directly below the metric value.
+ *   e.g. [ { label: "Lead Name", value: "Ananya Sharma" },
+ *            { label: "Company",   value: "TechCorp Pvt Ltd" } ]
  */
 
+export interface IdentifyingField {
+  label: string;
+  value: string;
+}
+
 interface KPICardProps {
-  title:    string;
-  value:    string | number;
-  unit?:    string;
-  insight?: string;
-  trend?:   number;
-  variant?: "primary" | "success" | "warning" | "info";
+  title:               string;
+  value:               string | number;
+  unit?:               string;
+  insight?:            string;
+  trend?:              number;
+  variant?:            "primary" | "success" | "warning" | "info";
+  identifying_fields?: IdentifyingField[];
 }
 
 // Status tag: only these colours are hardcoded (semantic health colours).
@@ -72,6 +85,37 @@ function TrendIndicator({ trend }: { trend: number }) {
   );
 }
 
+/**
+ * IdentifyingFieldTile — a small labeled rectangle for a single row field.
+ * Renders the label in muted uppercase and the value in accent text.
+ */
+function IdentifyingFieldTile({ label, value }: IdentifyingField) {
+  return (
+    <div
+      className="flex flex-col gap-0.5 px-2 py-1.5 border"
+      style={{
+        background:  "var(--bg-2)",
+        borderColor: "var(--bd-1)",
+        minWidth: "0",
+      }}
+    >
+      <span
+        className="text-[8px] tracking-[0.16em] uppercase font-semibold leading-none truncate"
+        style={{ color: "var(--tx-4)" }}
+      >
+        {label}
+      </span>
+      <span
+        className="text-[11px] font-mono font-medium leading-snug truncate"
+        style={{ color: "var(--tx-1)" }}
+        title={value}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
 export default function KPICard({
   title,
   value,
@@ -79,9 +123,13 @@ export default function KPICard({
   insight,
   trend,
   variant = "primary",
+  identifying_fields,
 }: KPICardProps) {
   const c            = STATUS_TAG[variant] ?? STATUS_TAG.primary;
   const displayValue = typeof value === "number" ? value.toLocaleString() : value;
+
+  const hasFields =
+    Array.isArray(identifying_fields) && identifying_fields.length > 0;
 
   return (
     <div
@@ -133,6 +181,23 @@ export default function KPICard({
         )}
         {typeof trend === "number" && <TrendIndicator trend={trend} />}
       </div>
+
+      {/* Identifying fields — rendered only for MAX/MIN record rows */}
+      {hasFields && (
+        <div className="mt-2 mb-2">
+          <p
+            className="text-[8px] tracking-[0.2em] uppercase font-semibold mb-1.5"
+            style={{ color: "var(--tx-4)" }}
+          >
+            Record
+          </p>
+          <div className="grid grid-cols-2 gap-1">
+            {identifying_fields!.map((f, i) => (
+              <IdentifyingFieldTile key={i} label={f.label} value={f.value} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Insight */}
       {insight && (

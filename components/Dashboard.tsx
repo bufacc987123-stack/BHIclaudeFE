@@ -24,13 +24,19 @@ import type { HistoryEntry } from "@/utils/healthScore";
 import type { AIInsights }   from "./AIInsightsPanel";
 import type { ChartData }    from "./ChartRenderer";
 
+interface IdentifyingField {
+  label: string;
+  value: string;
+}
+
 interface KPI {
-  title:    string;
-  value:    number | string;
-  unit?:    string;
-  insight?: string;
-  trend?:   number;
-  variant?: string;
+  title:               string;
+  value:               number | string;
+  unit?:               string;
+  insight?:            string;
+  trend?:              number;
+  variant?:            string;
+  identifying_fields?: IdentifyingField[];
 }
 
 interface DashboardProps {
@@ -153,6 +159,7 @@ export default function Dashboard({
                   (kpi.variant as "primary" | "success" | "warning" | "info") ??
                   "primary"
                 }
+                identifying_fields={kpi.identifying_fields}
               />
             ))}
           </div>
