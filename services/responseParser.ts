@@ -116,7 +116,7 @@ function normaliseKpi(raw: any, index: number): KPI {
     identifying_fields = raw.identifying_fields
       .filter((f: any) => f && typeof f.label === "string" && typeof f.value === "string")
       .map((f: any): IdentifyingField => ({ label: f.label, value: f.value }));
-    if (identifying_fields.length === 0) identifying_fields = undefined;
+    if (!identifying_fields || identifying_fields.length === 0) identifying_fields = undefined;
   }
 
   // Heuristic variant: if already set, trust it; else infer from keyword match
